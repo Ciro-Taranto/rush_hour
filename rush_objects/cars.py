@@ -1,5 +1,6 @@
 from colorama import Fore
 from colorama import Style
+from copy import deepcopy
 import numpy as np
 
 
@@ -10,9 +11,15 @@ mapping_color = {'green': Fore.GREEN, 'g': Fore.GREEN,
                  'purple': Fore.MAGENTA,
                  'cyan': Fore.CYAN,
                  'light-green': Fore.LIGHTGREEN_EX,
+                 'light-blue': Fore.LIGHTBLUE_EX,
                  'pink': Fore.LIGHTRED_EX,
                  'orange': Fore.LIGHTMAGENTA_EX,
-                 'dark': Fore.BLACK
+                 'dark': Fore.BLACK,
+                 'another_blue': Fore.BLUE,
+                 'another_green': Fore.GREEN,
+                 'magenta': Fore.MAGENTA,
+                 'grey': Fore.LIGHTBLACK_EX,
+                 'gray': Fore.LIGHTBLACK_EX,
                  }
 
 
@@ -62,6 +69,11 @@ class Board():
         self.uscita = uscita
         self.car_lot = {}
         self.board = np.zeros((self.size, self.size))
+        self.adding_order = []
+
+    def __eq__(self, other):
+        return (self.get_state() == other.get_state() and
+                self.size == other.size and self.uscita == self.uscita)
 
     def reset_board(self):
         self.board = np.zeros((self.size, self.size))
@@ -71,17 +83,14 @@ class Board():
         return self.car_lot[col]
 
     def get_state(self):
-        state = [(col, car.len, car.orient, tuple(car.position.copy()))
+        state = [(col, car.len, car.orient,
+                  tuple(car.position))
                  for col, car in self.car_lot.items()]
         state = tuple(state)
         return state
 
-    def recreate_board(self, game_step):
+    def recreate_board(self, state):
         self.reset_board()
-        try:
-            state = game_step.get_state()
-        except AttributeError:
-            state = game_step
         for item in state:
             self.place_car(*item)
         return self.board
@@ -95,6 +104,7 @@ class Board():
         if self.check_compatibility(next_car):
             self.car_lot[col] = next_car
             self.board = self.add_car_to_board(next_car)
+            self.adding_order.append(col)
         else:
             if verbose:
                 print('Adding the car was not possible for the constraints')
@@ -140,8 +150,7 @@ class Board():
                                    previous_position_slice=ps)
 
     def wannabe_state(self, moving_car, d):
-        self.move_car(moving_car, d)
-        wannabe_state = self.get_state()
+        wannabe_state = self.move_car(moving_car, d)
         self.undo_move(moving_car, d)
         return wannabe_state
 
@@ -154,6 +163,7 @@ class Board():
         return moves
 
     def move_car(self, moving_car, d):
+        present_state = self.get_state()
         ind = moving_car.moving_index
         ps = moving_car.position_slice
         proposed_position = (ps[0] + (d if ind == 0 else 0),
@@ -161,8 +171,13 @@ class Board():
         if self.is_legal_move(moving_car, d):
             # If it is possible to move the car, then move it
             self.board[moving_car.position_slice] = 0
-            moving_car.position[ind] = moving_car.position[ind]+d
-            return True
+            self.car_lot[moving_car.col].position[ind] = \
+                moving_car.position[ind]+d
+            self.car_lot[moving_car.col].position_slice = proposed_position
+            self.board[moving_car.position_slice] = 1
+            wannabe_state = self.get_state()
+            assert wannabe_state != present_state
+            return wannabe_state
         else:
             return False
 
@@ -174,10 +189,14 @@ class Board():
                         for j in range(self.size)]
         for col, car in self.car_lot.items():
             for i, j in zip(car.position_slice[0], car.position_slice[1]):
-                string_board[i][j] = car.color_car+"X"+Style.RESET_ALL
+                string_board[i][j] = '\x1b[1m'+Style.BRIGHT + \
+                    car.color_car+"X"+Style.RESET_ALL
         displines = ''
-        for line in string_board:
-            displines += '|' + '|'.join(line)+'|'+'\n'
+        for i, line in enumerate(string_board):
+            displines += '|' + '|'.join(line)+'|'
+            if i == self.uscita:
+                displines += '=>'
+            displines += '\n'
         return displines
 
     def render(self):

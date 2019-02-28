@@ -3,6 +3,7 @@
 #######################################################
 from rush_objects.cars import Car, Board
 from utils import memoize, PriorityQueue
+from collections import OrderedDict, deque
 
 
 class Problem(object):
@@ -72,31 +73,34 @@ class Node:
     that this is a successor of) and to the actual state for this node. Note
     that if a state is arrived at by two paths, then there are two nodes with
     the same state.
-    Also includes the action that got us to this state, and
-    the total path_cost (also known as g) to reach the node.  Other functions
-    may add an f and h value; see best_first_graph_search and astar_search for
-    an explanation of how the f and h values are handled. You will not need to
-    subclass this class.
+    Alsstate us to this state, and
+    thestates g) to reach the node.  Other functions
+    maystatet_first_graph_search and astar_search for
+    an state values are handled. You will not need to
+    substate
     """
 
     def __init__(self, state, parent=None, action=None, path_cost=0):
         """
         Create a search tree Node, derived from a parent by an action.
         """
-        self.state = state.get_state()
+        self.state = state
         self.parent = parent
         self.action = action
         self.path_cost = path_cost
         self.depth = 0
+        self.parent_list = []
         if parent:
             self.depth = parent.depth + 1
+            self.parent_list = parent.parent_list + [self.state]
 
     def __repr__(self):
         return "<Node {}>".format(self.state)
 
     def __lt__(self, node):
-        # [CT]: I do not get this one, unless we want to override it
-        return self.state < node.state
+        # This is for the case of equality in the f?
+        # return self.state < node.state
+        return True
 
     def expand(self, problem):
         """
@@ -122,10 +126,11 @@ class Node:
         """
         Return a list of nodes forming the path from the root to this node.
         """
-        node, path_back = self, []
-        while node:
-            path_back.append(node)
+        node = self
+        path_back = [node.state]
+        for i in range(self.depth):
             node = node.parent
+            path_back.append(node.state)
         return list(reversed(path_back))
 
     # We want for a queue of nodes in breadth_first_graph_search or
@@ -142,23 +147,26 @@ class Node:
 
 class RushGame(Problem):
     """
-    Adaptation of the Rush Hour problem to the A* 
+    Adaptation of the Rush Hour problem to the A*
     search function
     """
 
     def __init__(self, board):
         """
         Args:
-            board(Board): the state of the board that we want to solve. 
-                it will be overwritten 
+            board(Board): the state of the board that we want to solve.
+                it will be overwritten
         """
         self.board = board
+        self.board.car_lot = OrderedDict(self.board.car_lot)
         self.helper_board = Board(self.board.size, self.board.uscita)
-        Problem.__init__(self, board, None)
+        initial = board.get_state()
+        print(type(board))
+        Problem.__init__(self, initial, None)
 
     def actions(self, state):
         """
-        The state A is represented as a tuple.
+        State is a board.
         From there the agent can move to any of its neighbors
         that have not been visited yet.
         """
@@ -193,12 +201,14 @@ class RushGame(Problem):
         return red_car.position == [self.helper_board.uscita,
                                     self.helper_board.size-2]
 
-    def solve(self):
+    def solve(self, astar=False):
         """
         Execute the solution
         """
-        solution_node = astar_search(self)
-        return solution_node
+        if astar:
+            return astar_search(self)
+        else:
+            return breadth_first_graph_search(self)
 
 
 def best_first_graph_search(problem, f):
@@ -223,9 +233,6 @@ def best_first_graph_search(problem, f):
             return node
         explored.add(node.state)
         for child in node.expand(problem):
-            print(child.state == node.state)
-            print(child.state in explored)
-            print(child.state in frontier)
             if child.state not in explored and child not in frontier:
                 frontier.append(child)
             elif child in frontier:
@@ -234,8 +241,11 @@ def best_first_graph_search(problem, f):
                     del frontier[incumbent]
                     frontier.append(child)
         i += 1
-        if i % 10 == 0:
+        if i % 1000 == 0:
             print('Checked already {} nodes'.format(i))
+        if node.depth == 500:
+            print('Could not find solution within 100 steps, sorry!')
+            return False
     print('Solution could not be found within the limits imposed')
     return False
 
@@ -248,3 +258,33 @@ def astar_search(problem, h=None):
     """
     h = memoize(h or problem.h, 'h')
     return best_first_graph_search(problem, lambda n: n.path_cost + h(n))
+
+
+def breadth_first_graph_search(problem):
+    """[Figure 3.11]
+    Note that this function can be implemented in a
+    single line as below:
+    return graph_search(problem, FIFOQueue())
+    """
+    node = Node(problem.initial)
+    if problem.goal_test(node.state):
+        return node
+    frontier = deque([node])
+    explored = set()
+    i = 0
+    while frontier:
+        node = frontier.popleft()
+        explored.add(node.state)
+        for child in node.expand(problem):
+            if child.state not in explored and child not in frontier:
+                if problem.goal_test(child.state):
+                    return child
+                frontier.append(child)
+        i += 1
+        if i % 1000 == 0:
+            print('Checked already {} nodes'.format(i))
+        if node.depth == 500:
+            print('Could not find solution within 100 steps, sorry!')
+            return False
+    print('Solution could not be found within the limits imposed')
+    return False
