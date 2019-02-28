@@ -2,7 +2,7 @@
 #  Based on: https://github.com/aimacode/aima-python  #
 #######################################################
 from rush_objects.cars import Car, Board
-from utils import memoize, PriorityQueue
+# from utils import memoize, PriorityQueue
 from collections import OrderedDict, deque
 
 
@@ -133,7 +133,7 @@ class Node:
             path_back.append(node.state)
         return list(reversed(path_back))
 
-    # We want for a queue of nodes in breadth_first_graph_search or
+    # We want  a queue of nodes in breadth_first_graph_search or
     # astar_search to have no duplicated states, so we treat nodes
     # with the same state as equal. [Problem: this may not be what you
     # want in other contexts.]
@@ -206,6 +206,7 @@ class RushGame(Problem):
         Execute the solution
         """
         if astar:
+            raise NotImplementedError("The import of Priority Queue is needed")
             return astar_search(self)
         else:
             return breadth_first_graph_search(self)
@@ -243,8 +244,10 @@ def best_first_graph_search(problem, f):
         i += 1
         if i % 1000 == 0:
             print('Checked already {} nodes'.format(i))
-        if node.depth == 500:
-            print('Could not find solution within 100 steps, sorry!')
+        max_depth = 500
+        if node.depth == max_depth:
+            print('Could not find solution within {} steps, sorry!'.format(
+                max_depth))
             return False
     print('Solution could not be found within the limits imposed')
     return False
