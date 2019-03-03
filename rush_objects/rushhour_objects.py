@@ -76,8 +76,8 @@ class Car(object):
             return (self.place[0],self.place[1][0])
     
     @property
-    def get_color(self):
-        return DEFAULT_COLOR.get(self.color,False)  
+    def forecolor(self):
+        return '\x1b[1m'+Style.BRIGHT+DEFAULT_COLORS[self.color]+"X"+Style.RESET_ALL
     
     @property
     def length(self):
@@ -132,10 +132,14 @@ class Car(object):
     
     def __iadd__(self, other):
         """Moves the car along the positive direction 'other' steps"""
+        if abs(other) != 1:
+            raise ValueError("Absolute displacement of a 'car' must be 1")
         self.place[self.orid] += other; return self
     
     def __isub__(self, other):
         """Moves the car along the negative direction 'other' steps"""
+        if abs(other) != 1:
+            raise ValueError("Absolute displacement of a 'car' must be 1")
         self.place[self.orid] -= other; return self
 
     @classmethod
@@ -147,16 +151,16 @@ class Car(object):
         x,y = place 
         if orid == 0:
             orientation = "v" 
-            position = [x[0],y]
+            position = [x[0], y]
             length = x.shape[0]
         elif orid == 1:
             orientation = "h"
-            position = [x,y[0]]
+            position = [x, y[0]]
             length = y.shape[0]
         else:
             raise ValueError("Wrong specifiers. Cannot construct instanse") 
 
-        return cls(color,position,length,orientation) 
+        return cls(color, position, length, orientation) 
             
 
 class Board(object):
@@ -191,7 +195,7 @@ class Board(object):
         self.exitrow = exitrow
         
     @property
-    def empty_places(self):
+    def occupied_places(self):
         return np.count_nonzero(self.view) 
     
     def insert_car(self,color,position,length,orientation):
@@ -249,24 +253,68 @@ class Board(object):
         if np.any(self.view>1): 
             raise ValueError("Recreation of the 'view' raised conflicts") 
     
+    def render(self,title=None,padding=""):
+        """Routine to render the view of the board as colored-strings"""
+        mapcolor = lambda x: self.cars[x].forecolor if x!="" else "0" 
+        
+        # Fill in the 'string-form' of the board with the cars 
+        strlen = max(map(len,DEFAULT_COLORS.keys()))
+        asstring = np.chararray(self.view.shape,strlen,unicode=True) 
+        for color,car in self.cars.items(): 
+            asstring[car.npindices] = color 
+        
+        # Create output and use pretty-colors 
+        output = "" if title is None else title+"\n"
+        for index,line in enumerate(asstring.tolist()):
+            output += "{padding}|{positions}|{target}\n".format(
+                        padding = padding,
+                        positions = "|".join(map(mapcolor,line)),
+                        target = " => EXIT" if index==self.exitrow else "") 
+        print(output)
+            
+    
     # --------------------- BUILD-IN OVERLOADS ----------------------- # 
         
-    def __setitem__(self, color, displacement):
+    def __setitem__(self, color, moving_car):
         """With this overload you can modify the position of each car and 
-        automatically update the 'view' of the board (if allowed)"""
-        limit = self.view.shape[0] if displacement > 0 else 0
-        if self.cars[color].can_move(displacement,limit):
-            temp = self.cars[color].npindices
-            self.cars[color] += displacement 
-            if np.any(self.view[self.cars[color].npindices]==0):
-                self.view[temp] = 0
-                self.view[self.cars[color].npindices] = 1
-            else:
-                self.cars[color] -= displacement
-                raise ValueError("Unable to reset the position of the car: 'case-0'")  
-        else:
-            raise ValueError("Unable to reset the position of the car: 'case-1'")
+        automatically update the 'view' of the board (if allowed). To be 
+        used to 'overload' the operation board[color] += value and/or 
+        board[color] -= value and not to set a car. 
+        """
+        # Current view (before updating) to be able to decline the move.
+        # Remember that the car has been already displaced and we need to
+        # see if it conflicts with the other cars. 
+        safeview = self.get_view()
+        self.update_view() 
         
+        # This condition ensures that you didn't try to set a 'car' 
+        # instance using this overload as "board[color] = Car(...)"
+        if np.all(safeview==self.view):
+            raise ValueError("To insert a 'car' instance use 'insert_car' routine ")
+        
+        # If we pass this criterion we ensure that the move is allowed 
+        if not np.sum(self.view-safeview) == 0:
+            print("Move declined. Returning to safety...")
+            # In that case we need to get back to the 'previous' view
+            are_equal = lambda x,y: np.equal(x,y).all()
+            
+            # Assuming that the car moved +1 --> we move backwards
+            moving_car -= 1; self.update_view() 
+            
+            if not are_equal(safeview,self.view):
+                # At this point we know that we move on the wrong 
+                # direction. So we need to do two steps to get back 
+                moving_car += 1; moving_car += 1; self.update_view()
+            
+            # Just for extra-protection before we exit 
+            if not are_equal(safeview,self.view):
+                raise ValueError("Unable to return to last view of the board") 
+                
+    def __getitem__(self,color):
+        """Routine to get a car of specific color as 'item'. Doesn't create 
+        a copy though!! (mutable types)"""
+        return self.cars[color]
+    
     def __str__(self):
         ncars = len(self.cars.keys())
         return "Board with view\n%s\ncontaining %s cars"%(self.view,ncars)
