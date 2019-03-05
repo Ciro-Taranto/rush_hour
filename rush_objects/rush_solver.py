@@ -1,12 +1,13 @@
-#######################################################
+3#######################################################
 #  Based on: https://github.com/aimacode/aima-python  #
 #######################################################
-from rush_objects.cars import Car, Board
 # from utils import memoize, PriorityQueue
-from collections import OrderedDict, deque
+from rush_objects.rushhour_objects import Board
+from collections import deque
+from abc import ABC, abstractmethod
 
 
-class Problem(object):
+class Problem(ABC):
     """
     The abstract class for a formal problem.
     """
@@ -19,20 +20,22 @@ class Problem(object):
         self.initial = initial
         self.goal = goal
 
+    @abstractmethod
     def actions(self, state):
         """
         Return the actions that can be executed in the given
         state.
         """
-        raise NotImplementedError
+        pass
 
+    @abstractmethod
     def result(self, state, action):
         """
         Return the state that results from executing the given
         action in the given state. The action must be one of
         self.actions(state).
         """
-        raise NotImplementedError
+        pass
 
     def goal_test(self, state):
         """
@@ -42,7 +45,7 @@ class Problem(object):
         checking against a single self.goal is not enough.
         """
         if isinstance(self.goal, list):
-            return is_in(state, self.goal)
+            return state in self.goal
         else:
             return state == self.goal
 
@@ -54,30 +57,34 @@ class Problem(object):
         is such that the path doesn't matter, this function will only look at
         state2.
         If the path does matter, it will consider c and maybe state1
-        and action. The default method costs 1 for every step in the path."""
+        and action. The default method costs 1 for every step in the path.
+        """
         return c + 1
 
     def value(self, state):
         """
         For optimization problems, each state has a value.
         Hill-climbing
-        and related algorithms try to maximize this value."""
+        and related algorithms try to maximize this value.
+        """
         raise NotImplementedError
 # ______________________________________________________________________________
 
 
-class Node:
+class Node(ABC):
     """
     A node in a search tree.
     Contains a pointer to the parent (the node
-    that this is a successor of) and to the actual state for this node. Note
-    that if a state is arrived at by two paths, then there are two nodes with
+    that this is a successor of) and to the actual state for this node.
+    Note that if a state is arrived at by two paths, then there are two nodes with
     the same state.
-    Alsstate us to this state, and
-    thestates g) to reach the node.  Other functions
-    maystatet_first_graph_search and astar_search for
-    an state values are handled. You will not need to
-    substate
+
+    Arguments:
+    ----------
+    - state: hashable, the hash of the state.
+    - parent: hashable, the hash of the parent state
+    - action: the action to reach this state from the parent state
+    - path_cost: float, the path cost from the root to this state
     """
 
     def __init__(self, state, parent=None, action=None, path_cost=0):
@@ -98,6 +105,7 @@ class Node:
         return "<Node {}>".format(self.state)
 
     def __lt__(self, node):
+        # TODO: how to order, if the hashable are not integers?
         # This is for the case of equality in the f?
         # return self.state < node.state
         return True
@@ -144,125 +152,6 @@ class Node:
     def __hash__(self):
         return hash(self.state)
 
-
-class RushGame(Problem):
-    """
-    Adaptation of the Rush Hour problem to the A*
-    search function
-    """
-
-    def __init__(self, board):
-        """
-        Args:
-            board(Board): the state of the board that we want to solve.
-                it will be overwritten
-        """
-        self.board = board
-        self.board.car_lot = OrderedDict(self.board.car_lot)
-        self.helper_board = Board(self.board.size, self.board.uscita)
-        initial = board.get_state()
-        print(type(board))
-        Problem.__init__(self, initial, None)
-
-    def actions(self, state):
-        """
-        State is a board.
-        From there the agent can move to any of its neighbors
-        that have not been visited yet.
-        """
-        self.helper_board.recreate_board(state)
-        action_list = self.helper_board.possible_moves()
-        return action_list
-
-    def result(self, state, action):
-        """
-        The result of going to a neighbor is that the neighbor
-        would be added to the list of visited.
-        Take care that the action is an instance of Vertex
-        So we need to extract its id
-        """
-        # A bit of care with tuples and lists
-        self.helper_board.recreate_board(state)
-        would_be_state = self.helper_board.wannabe_state(action[0], action[1])
-        return would_be_state
-
-    def h(self, node):
-        """
-        h function is not implemented
-        """
-        return 0
-
-    def goal_test(self, state):
-        """
-        The goal is reached when the red car is at the exit
-        """
-        self.helper_board.recreate_board(state)
-        red_car = self.helper_board.get_car('red')
-        return red_car.position == [self.helper_board.uscita,
-                                    self.helper_board.size-2]
-
-    def solve(self, astar=False):
-        """
-        Execute the solution
-        """
-        if astar:
-            raise NotImplementedError("The import of Priority Queue is needed")
-            return astar_search(self)
-        else:
-            return breadth_first_graph_search(self)
-
-
-def best_first_graph_search(problem, f):
-    """
-    Search the nodes with the lowest f scores first.
-    You specify the function f(node) that you want to minimize; for example,
-    if f is a heuristic estimate to the goal, then we have greedy best
-    first search; if f is node.depth then we have breadth-first search.
-    There is a subtlety: the line "f = memoize(f, 'f')" means that the f
-    values will be cached on the nodes as they are computed. So after doing
-    a best first search you can examine the f values of the path returned.
-    """
-    f = memoize(f, 'f')
-    node = Node(problem.initial)
-    frontier = PriorityQueue('min', f)
-    frontier.append(node)
-    explored = set()
-    i = 0
-    while frontier:
-        node = frontier.pop()
-        if problem.goal_test(node.state):
-            return node
-        explored.add(node.state)
-        for child in node.expand(problem):
-            if child.state not in explored and child not in frontier:
-                frontier.append(child)
-            elif child in frontier:
-                incumbent = frontier[child]
-                if f(child) < f(incumbent):
-                    del frontier[incumbent]
-                    frontier.append(child)
-        i += 1
-        if i % 1000 == 0:
-            print('Checked already {} nodes'.format(i))
-        max_depth = 500
-        if node.depth == max_depth:
-            print('Could not find solution within {} steps, sorry!'.format(
-                max_depth))
-            return False
-    print('Solution could not be found within the limits imposed')
-    return False
-
-
-def astar_search(problem, h=None):
-    """
-    A* search is best-first graph search with f(n) = g(n)+h(n).
-    You need to specify the h function when you call astar_search, or
-    else in your Problem subclass.
-    """
-    h = memoize(h or problem.h, 'h')
-    return best_first_graph_search(problem, lambda n: n.path_cost + h(n))
-
-
 def breadth_first_graph_search(problem):
     """[Figure 3.11]
     Note that this function can be implemented in a
@@ -275,6 +164,7 @@ def breadth_first_graph_search(problem):
     frontier = deque([node])
     explored = set()
     i = 0
+
     while frontier:
         node = frontier.popleft()
         explored.add(node.state)
@@ -291,3 +181,106 @@ def breadth_first_graph_search(problem):
             return False
     print('Solution could not be found within the limits imposed')
     return False
+
+
+
+
+class RushGame(Problem):
+    """
+    Class to play the game.
+    Takes as input the board with the original arrangement of the cars,
+    and allows to solve it with AIMA [artificial intelligence modern approach] methods.
+
+    Arguments:
+    ----------
+    - board: Board or tuple(state)
+
+    Keyword arguments:
+    ------------------
+    - target: string, the target car (default is 'red')
+
+    """
+    def __init__(self, board, **kwargs):
+
+        print(type(board))
+        if isinstance(board, Board):
+            self.initial = Board.from_state(board.get_state())
+        elif isinstance(board, tuple):
+            self.initial = Board.from_state(board)
+        else:
+            raise ValueError("RushHour initialized expects 'Board'/'tuple'")
+
+        self.target_car = kwargs.get("target", "red")
+        if self.target_car not in self.initial.cars:
+            raise ValueError("Target {} not found in the board".format(self.target_car))
+        else:
+            if self.initial[self.target_car].position[0] != self.initial.exitrow:
+                raise ValueError("Target 'car' not placed in the 'exitrow'")
+            elif self.initial[self.target_car].orientation != 'h':
+                raise ValueError("Target car must be oriented horizontally")
+            else:
+                targetcol = self.initial.view.shape[0] - self.initial[self.target_car].length
+                self.target = (self.initial.exitrow, targetcol)
+        self.board = self.initial
+        # The problem instance has to be initialized with the state
+        Problem.__init__(self, self.board.get_state(), None)
+
+    def actions(self, state):
+        """
+        Instantiate the abstract method of the Problem class.
+        Given a state, returns the states that can be reached from this
+        one.
+
+        Arguments:
+        ----------
+        state: hashable, the hashable of the state from which the board can be recreated
+
+        Returns:
+        --------
+        possible_moves:tuple, the list of possible state that can be reached.
+            please note that in this case there is a perfect equivalence between
+            action and state that can be reached with it.
+        """
+        self.board = self.board.from_state(state)
+        actions = self.board.connected_states
+        return actions
+
+    def result(self, state, action):
+        """
+        The result of an action is entering in the state, i.e.m actions and states are equivalent
+
+        Arguments:
+        ----------
+        state: hashable, The state from which the action started
+        action: hashable, The result of going to a state is... being in that state
+
+        Returns:
+        action, the state to be reached
+        """
+        assert state != action
+        return action
+
+    def h(self, node):
+        """
+        h is the heuristic function
+        """
+        raise NotImplementedError
+
+    def goal_test(self, state):
+        """
+        Check if target car is in proper position
+        """
+        self.board = self.board.from_state(state)
+        return self.board.cars[self.target_car].position == self.target
+
+    def solve(self, astar=False):
+        """
+        Execute the solution
+        """
+        if astar:
+            raise NotImplementedError("A star search requires a heuristic function and PriorityQueue")
+            return astar_search(self)
+        else:
+            return breadth_first_graph_search(self)
+
+

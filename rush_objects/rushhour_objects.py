@@ -6,22 +6,22 @@ import numpy as np
 
 # ------------------------- COLOR DEFINITIONS ----------------------- #
 DEFAULT_COLORS = dict()
-DEFAULT_COLORS["green"]         = Fore.GREEN
-DEFAULT_COLORS["red"]           = Fore.RED
-DEFAULT_COLORS["blue"]          = Fore.BLUE
-DEFAULT_COLORS["yellow"]        = Fore.YELLOW
-DEFAULT_COLORS["purple"]        = Fore.MAGENTA
-DEFAULT_COLORS["cyan"]          = Fore.CYAN
-DEFAULT_COLORS["light-green"]   = Fore.LIGHTGREEN_EX
-DEFAULT_COLORS["light-blue"]    = Fore.LIGHTBLUE_EX
-DEFAULT_COLORS["pink"]          = Fore.LIGHTRED_EX
-DEFAULT_COLORS["orange"]        = Fore.LIGHTMAGENTA_EX
-DEFAULT_COLORS["dark"]          = Fore.BLACK
-DEFAULT_COLORS["another_blue"]  = Fore.BLUE
+DEFAULT_COLORS["green"] = Fore.GREEN
+DEFAULT_COLORS["red"] = Fore.RED
+DEFAULT_COLORS["blue"] = Fore.BLUE
+DEFAULT_COLORS["yellow"] = Fore.YELLOW
+DEFAULT_COLORS["purple"] = Fore.MAGENTA
+DEFAULT_COLORS["cyan"] = Fore.CYAN
+DEFAULT_COLORS["light-green"] = Fore.LIGHTGREEN_EX
+DEFAULT_COLORS["light-blue"] = Fore.LIGHTBLUE_EX
+DEFAULT_COLORS["pink"] = Fore.LIGHTRED_EX
+DEFAULT_COLORS["orange"] = Fore.LIGHTMAGENTA_EX
+DEFAULT_COLORS["dark"] = Fore.BLACK
+DEFAULT_COLORS["another_blue"] = Fore.BLUE
 DEFAULT_COLORS["another_green"] = Fore.GREEN
-DEFAULT_COLORS["grey"]          = Fore.LIGHTBLACK_EX
-DEFAULT_COLORS["grey"]          = Fore.LIGHTBLACK_EX
-
+DEFAULT_COLORS["grey"] = Fore.LIGHTBLACK_EX
+DEFAULT_COLORS["gray"] = Fore.LIGHTBLACK_EX
+DEFAULT_COLORS["magenta"] = Fore.MAGENTA
 
 class Car(object):
     """
@@ -50,7 +50,7 @@ class Car(object):
     - npindices: the slice that correspond to the position of the car
     - get_color: API to connect with Fore for rendering 
     
-    NOTE: Color is completely obsolate and should be removed in the future
+    NOTE: Color is completely obsolete and should be removed in the future
     """
     # Use of __slots__ instead of __dict__ reduces memory consumption 
     __slots__ = ["color","place","orid"]
@@ -220,14 +220,14 @@ class Board(object):
     def connected_states(self):
         states = list() 
         for color in self.cars.keys():
-            for displacement,boardlimit in [(-1,0),(1,self.view.shape[0])]:
-                if self.cars[color].can_move(displacement,boardlimit):
+            for displacement, boardlimit in [(-1, 0), (1, self.view.shape[0])]:
+                if self.cars[color].can_move(displacement, boardlimit):
                     # Move the car without changing the 'view'
                     self.cars[color] += displacement 
                     
                     # Check if the 'new' position creates conflicts
-                    if np.any(self.view[self.cars[color].npindices]==0): 
-                        states.append(self.get_state())    
+                    if np.any(self.view[self.cars[color].npindices] == 0):
+                        states.append(self.get_state())
                     
                     # Return the car to its original position 
                     self.cars[color] -= displacement
@@ -236,7 +236,9 @@ class Board(object):
     
     @classmethod
     def from_state(cls, state):
-        """Construct a 'Board' object from a given (hashed) state"""
+        """
+        Construct a 'Board' object from a given (hashed) state
+        """
         board = cls(state[0],state[1])
         for item in state[2:]: board.insert_car(*item) 
         return board
@@ -253,7 +255,7 @@ class Board(object):
         if np.any(self.view>1): 
             raise ValueError("Recreation of the 'view' raised conflicts") 
     
-    def render(self,title=None,padding=""):
+    def render(self, title=None, padding="", return_string=False):
         """Routine to render the view of the board as colored-strings"""
         mapcolor = lambda x: self.cars[x].forecolor if x!="" else "0" 
         
@@ -265,18 +267,22 @@ class Board(object):
         
         # Create output and use pretty-colors 
         output = "" if title is None else title+"\n"
-        for index,line in enumerate(asstring.tolist()):
+        for index, line in enumerate(asstring.tolist()):
             output += "{padding}|{positions}|{target}\n".format(
                         padding = padding,
                         positions = "|".join(map(mapcolor,line)),
-                        target = " => EXIT" if index==self.exitrow else "") 
-        print(output)
+                        target = " => EXIT" if index==self.exitrow else "")
+        if return_string:
+            return output
+        else:
+            print(output)
             
     
     # --------------------- BUILD-IN OVERLOADS ----------------------- # 
-        
+
     def __setitem__(self, color, moving_car):
-        """With this overload you can modify the position of each car and 
+        """
+        With this overload you can modify the position of each car and
         automatically update the 'view' of the board (if allowed). To be 
         used to 'overload' the operation board[color] += value and/or 
         board[color] -= value and not to set a car. 

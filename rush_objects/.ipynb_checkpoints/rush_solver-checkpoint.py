@@ -16,7 +16,7 @@ class Problem(object):
         The constructor specifies the initial state, and possibly a goal
         state, if there is a unique goal.
         """
-        self.initial = initial
+        self.board = initial
         self.goal = goal
 
     def actions(self, state):
