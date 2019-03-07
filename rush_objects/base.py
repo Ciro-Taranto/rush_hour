@@ -3,6 +3,7 @@ from colorama import Style
 from copy import deepcopy
 from collections import OrderedDict
 import numpy as np
+from rush_objects.core import Problem
 
 # ------------------------- COLOR DEFINITIONS ----------------------- #
 DEFAULT_COLORS = dict()
@@ -327,3 +328,86 @@ class Board(object):
     
     def __repr__(self):
         return self.__str__()
+
+class RushHour(Problem):
+    """
+    Class to play the game.
+    Takes as input the board with the original arrangement of the cars,
+    and allows to solve it with AIMA [artificial intelligence modern approach] methods.
+
+    Arguments:
+    ----------
+    - board: Board or tuple(state)
+
+    Keyword arguments:
+    ------------------
+    - target: string, the target car (default is 'red')
+
+    """
+    def __init__(self, board, **kwargs):
+        if isinstance(board, Board):
+            self.initial = Board.from_state(board.get_state())
+        elif isinstance(board, tuple):
+            self.initial = Board.from_state(board)
+        else:
+            raise ValueError("RushHour initialized expects 'Board'/'tuple'")
+
+        self.target_car = kwargs.get("target", "red")
+        if self.target_car not in self.initial.cars:
+            raise ValueError("Target {} not found in the board".format(self.target_car))
+        else:
+            if self.initial[self.target_car].position[0] != self.initial.exitrow:
+                raise ValueError("Target 'car' not placed in the 'exitrow'")
+            elif self.initial[self.target_car].orientation != 'h':
+                raise ValueError("Target car must be oriented horizontally")
+            else:
+                targetcol = self.initial.view.shape[0] - self.initial[self.target_car].length
+                self.target = (self.initial.exitrow, targetcol)
+
+        Problem.__init__(self, self.initial.get_state(), None)
+
+    def actions(self, state):
+        """
+        Instantiate the abstract method of the Problem class.
+        Given a state, returns the states that can be reached from this
+        one.
+
+        Arguments:
+        ----------
+        state: hashable, the hashable of the state from which the board can be recreated
+
+        Returns:
+        --------
+        possible_moves:tuple, the list of possible state that can be reached.
+            please note that in this case there is a perfect equivalence between
+            action and state that can be reached with it.
+        """
+        return Board.from_state(state).connected_states
+
+    def result(self, state, action):
+        """
+        The result of an action is entering in the state, i.e.m actions and states are equivalent
+
+        Arguments:
+        ----------
+        state: hashable, The state from which the action started
+        action: hashable, The result of going to a state is... being in that state
+
+        Returns:
+        action, the state to be reached
+        """
+        #assert state != action
+        return action
+
+    def h(self, node):
+        """
+        h is the heuristic function
+        """
+        raise NotImplementedError
+
+    def goal_test(self, state):
+        """
+        Check if target car is in proper position
+        """
+        board = Board.from_state(state)
+        return board.cars[self.target_car].position == self.target
