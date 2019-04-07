@@ -3,25 +3,26 @@ from colorama import Style
 from copy import deepcopy
 from collections import OrderedDict
 import numpy as np
+from rush_objects.core import Problem
 
 # ------------------------- COLOR DEFINITIONS ----------------------- #
 DEFAULT_COLORS = dict()
-DEFAULT_COLORS["green"]         = Fore.GREEN
-DEFAULT_COLORS["red"]           = Fore.RED
-DEFAULT_COLORS["blue"]          = Fore.BLUE
-DEFAULT_COLORS["yellow"]        = Fore.YELLOW
-DEFAULT_COLORS["purple"]        = Fore.MAGENTA
-DEFAULT_COLORS["cyan"]          = Fore.CYAN
-DEFAULT_COLORS["light-green"]   = Fore.LIGHTGREEN_EX
-DEFAULT_COLORS["light-blue"]    = Fore.LIGHTBLUE_EX
-DEFAULT_COLORS["pink"]          = Fore.LIGHTRED_EX
-DEFAULT_COLORS["orange"]        = Fore.LIGHTMAGENTA_EX
-DEFAULT_COLORS["dark"]          = Fore.BLACK
-DEFAULT_COLORS["another_blue"]  = Fore.BLUE
+DEFAULT_COLORS["green"] = Fore.GREEN
+DEFAULT_COLORS["red"] = Fore.RED
+DEFAULT_COLORS["blue"] = Fore.BLUE
+DEFAULT_COLORS["yellow"] = Fore.YELLOW
+DEFAULT_COLORS["purple"] = Fore.MAGENTA
+DEFAULT_COLORS["cyan"] = Fore.CYAN
+DEFAULT_COLORS["light-green"] = Fore.LIGHTGREEN_EX
+DEFAULT_COLORS["light-blue"] = Fore.LIGHTBLUE_EX
+DEFAULT_COLORS["pink"] = Fore.LIGHTRED_EX
+DEFAULT_COLORS["orange"] = Fore.LIGHTMAGENTA_EX
+DEFAULT_COLORS["dark"] = Fore.BLACK
+DEFAULT_COLORS["another_blue"] = Fore.BLUE
 DEFAULT_COLORS["another_green"] = Fore.GREEN
-DEFAULT_COLORS["grey"]          = Fore.LIGHTBLACK_EX
-DEFAULT_COLORS["grey"]          = Fore.LIGHTBLACK_EX
-
+DEFAULT_COLORS["grey"] = Fore.LIGHTBLACK_EX
+DEFAULT_COLORS["gray"] = Fore.LIGHTBLACK_EX
+DEFAULT_COLORS["magenta"] = Fore.MAGENTA
 
 class Car(object):
     """
@@ -50,7 +51,7 @@ class Car(object):
     - npindices: the slice that correspond to the position of the car
     - get_color: API to connect with Fore for rendering 
     
-    NOTE: Color is completely obsolate and should be removed in the future
+    NOTE: Color is completely obsolete and should be removed in the future
     """
     # Use of __slots__ instead of __dict__ reduces memory consumption 
     __slots__ = ["color","place","orid"]
@@ -220,14 +221,14 @@ class Board(object):
     def connected_states(self):
         states = list() 
         for color in self.cars.keys():
-            for displacement,boardlimit in [(-1,0),(1,self.view.shape[0])]:
-                if self.cars[color].can_move(displacement,boardlimit):
+            for displacement, boardlimit in [(-1, 0), (1, self.view.shape[0])]:
+                if self.cars[color].can_move(displacement, boardlimit):
                     # Move the car without changing the 'view'
                     self.cars[color] += displacement 
                     
                     # Check if the 'new' position creates conflicts
-                    if np.any(self.view[self.cars[color].npindices]==0): 
-                        states.append(self.get_state())    
+                    if np.any(self.view[self.cars[color].npindices] == 0):
+                        states.append(self.get_state())
                     
                     # Return the car to its original position 
                     self.cars[color] -= displacement
@@ -236,7 +237,9 @@ class Board(object):
     
     @classmethod
     def from_state(cls, state):
-        """Construct a 'Board' object from a given (hashed) state"""
+        """
+        Construct a 'Board' object from a given (hashed) state
+        """
         board = cls(state[0],state[1])
         for item in state[2:]: board.insert_car(*item) 
         return board
@@ -253,7 +256,7 @@ class Board(object):
         if np.any(self.view>1): 
             raise ValueError("Recreation of the 'view' raised conflicts") 
     
-    def render(self,title=None,padding=""):
+    def render(self, title=None, padding="", return_string=False):
         """Routine to render the view of the board as colored-strings"""
         mapcolor = lambda x: self.cars[x].forecolor if x!="" else "0" 
         
@@ -265,18 +268,22 @@ class Board(object):
         
         # Create output and use pretty-colors 
         output = "" if title is None else title+"\n"
-        for index,line in enumerate(asstring.tolist()):
+        for index, line in enumerate(asstring.tolist()):
             output += "{padding}|{positions}|{target}\n".format(
                         padding = padding,
                         positions = "|".join(map(mapcolor,line)),
-                        target = " => EXIT" if index==self.exitrow else "") 
-        print(output)
+                        target = " => EXIT" if index==self.exitrow else "")
+        if return_string:
+            return output
+        else:
+            print(output)
             
     
     # --------------------- BUILD-IN OVERLOADS ----------------------- # 
-        
+
     def __setitem__(self, color, moving_car):
-        """With this overload you can modify the position of each car and 
+        """
+        With this overload you can modify the position of each car and
         automatically update the 'view' of the board (if allowed). To be 
         used to 'overload' the operation board[color] += value and/or 
         board[color] -= value and not to set a car. 
@@ -321,3 +328,86 @@ class Board(object):
     
     def __repr__(self):
         return self.__str__()
+
+class RushHour(Problem):
+    """
+    Class to play the game.
+    Takes as input the board with the original arrangement of the cars,
+    and allows to solve it with AIMA [artificial intelligence modern approach] methods.
+
+    Arguments:
+    ----------
+    - board: Board or tuple(state)
+
+    Keyword arguments:
+    ------------------
+    - target: string, the target car (default is 'red')
+
+    """
+    def __init__(self, board, **kwargs):
+        if isinstance(board, Board):
+            self.initial = Board.from_state(board.get_state())
+        elif isinstance(board, tuple):
+            self.initial = Board.from_state(board)
+        else:
+            raise ValueError("RushHour initialized expects 'Board'/'tuple'")
+
+        self.target_car = kwargs.get("target", "red")
+        if self.target_car not in self.initial.cars:
+            raise ValueError("Target {} not found in the board".format(self.target_car))
+        else:
+            if self.initial[self.target_car].position[0] != self.initial.exitrow:
+                raise ValueError("Target 'car' not placed in the 'exitrow'")
+            elif self.initial[self.target_car].orientation != 'h':
+                raise ValueError("Target car must be oriented horizontally")
+            else:
+                targetcol = self.initial.view.shape[0] - self.initial[self.target_car].length
+                self.target = (self.initial.exitrow, targetcol)
+
+        Problem.__init__(self, self.initial.get_state(), None)
+
+    def actions(self, state):
+        """
+        Instantiate the abstract method of the Problem class.
+        Given a state, returns the states that can be reached from this
+        one.
+
+        Arguments:
+        ----------
+        state: hashable, the hashable of the state from which the board can be recreated
+
+        Returns:
+        --------
+        possible_moves:tuple, the list of possible state that can be reached.
+            please note that in this case there is a perfect equivalence between
+            action and state that can be reached with it.
+        """
+        return Board.from_state(state).connected_states
+
+    def result(self, state, action):
+        """
+        The result of an action is entering in the state, i.e.m actions and states are equivalent
+
+        Arguments:
+        ----------
+        state: hashable, The state from which the action started
+        action: hashable, The result of going to a state is... being in that state
+
+        Returns:
+        action, the state to be reached
+        """
+        #assert state != action
+        return action
+
+    def h(self, node):
+        """
+        h is the heuristic function
+        """
+        raise NotImplementedError
+
+    def goal_test(self, state):
+        """
+        Check if target car is in proper position
+        """
+        board = Board.from_state(state)
+        return board.cars[self.target_car].position == self.target
